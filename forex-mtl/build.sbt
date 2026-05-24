@@ -57,6 +57,7 @@ libraryDependencies ++= Seq(
   Libraries.http4sDsl,
   Libraries.http4sServer,
   Libraries.http4sCirce,
+  Libraries.http4sClient,
   Libraries.circeCore,
   Libraries.circeGeneric,
   Libraries.circeGenericExt,

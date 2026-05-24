@@ -1,7 +1,3 @@
-<img src="/paidy.png?raw=true" width=300 style="background-color:white;">
-
-# Paidy Take-Home Coding Exercises
-
 ## What to expect?
 We understand that your time is valuable, and in anyone's busy schedule solving these exercises may constitute a fairly substantial chunk of time, so we really appreciate any effort you put in to helping us build a solid team.
 
