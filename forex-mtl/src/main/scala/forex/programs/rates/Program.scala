@@ -15,7 +15,7 @@ class Program[F[_]: Functor](
     // Convert the request to Rate.Pair format
     val pair = Rate.Pair(request.from, request.to)
 
-    // Call the rates service (which is either live or dummy)
+    // Call the rates service
     EitherT[F, ServiceError, Rate](ratesService.get(pair))
       .leftMap((err: ServiceError) => errors.toProgramError(err))
       .value

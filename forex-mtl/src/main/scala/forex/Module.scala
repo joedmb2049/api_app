@@ -1,6 +1,7 @@
 package forex
 
 import cats.effect.{ ConcurrentEffect, Timer }
+import org.http4s.client.Client
 import forex.config.ApplicationConfig
 import forex.http.rates.RatesHttpRoutes
 import forex.services._
@@ -9,7 +10,7 @@ import org.http4s._
 import org.http4s.implicits._
 import org.http4s.server.middleware.{ AutoSlash, Timeout }
 
-class Module[F[_]: Concurrent: Timer](config: ApplicationConfig) {
+class Module[F[_]: ConcurrentEffect: Timer](config: ApplicationConfig, client: Client[F]) {
 
   private val ratesService: RatesService[F] = RatesServices.live[F](client)
 

@@ -7,16 +7,16 @@ import forex.programs.rates.errors.{Error => ProgramError}
 import forex.services.rates.{Algebra => RatesService, errors => RatesServiceErrors}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import java.time.Instant
+import java.time.OffsetDateTime
 
 class ProgramSpec extends AnyWordSpec with Matchers {
 
   // Helper for creating a dummy Rate.Pair
   def dummyRatePair(from: String, to: String): Rate.Pair =
-    Rate.Pair(Currency.fromString(from).get, Currency.fromString(to).get)
+    Rate.Pair(Currency.fromString(from), Currency.fromString(to))
 
   // Helper for creating a dummy Rate
-  def dummyRate(from: String, to: String, price: Double, timestamp: Instant): Rate =
+  def dummyRate(from: String, to: String, price: Double, timestamp: OffsetDateTime): Rate =
     Rate(dummyRatePair(from, to), Price(BigDecimal(price)), Timestamp(timestamp))
 
   "RatesProgram" should {
@@ -24,7 +24,7 @@ class ProgramSpec extends AnyWordSpec with Matchers {
     "successfully return a rate when the service succeeds" in {
       val pair = dummyRatePair("USD", "JPY")
       val request = Protocol.GetRatesRequest(pair.from, pair.to)
-      val expectedRate = dummyRate("USD", "JPY", 100.0, Instant.now())
+      val expectedRate = dummyRate("USD", "JPY", 100.0, OffsetDateTime.now())
 
       val mockRatesService = new RatesService[IO] {
         override def get(p: Rate.Pair): IO[RatesServiceErrors.Error Either Rate] =

@@ -4,15 +4,15 @@ import cats.effect._
 import cats.implicits._
 import forex.domain._
 import forex.programs.rates.{Algebra => RatesProgram, Protocol => RatesProgramProtocol, errors => ProgramErrors}
+import forex.http.rates.Converters._
+import forex.http.rates.Protocol.GetApiResponse
 import org.http4s._
 import org.http4s.implicits._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import io.circe.literal._
-import java.time.Instant
+import java.time.OffsetDateTime
+import io.circe.generic.auto._
 import scala.concurrent.ExecutionContext
-import cats.effect.unsafe.implicits.global
-import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.circe.CirceEntityDecoder._
 
 class RatesHttpRoutesSpec extends AnyWordSpec with Matchers {
@@ -23,17 +23,16 @@ class RatesHttpRoutesSpec extends AnyWordSpec with Matchers {
 
   // Helper for creating a dummy Rate.Pair
   def dummyRatePair(from: String, to: String): Rate.Pair =
-    Rate.Pair(Currency.fromString(from).get, Currency.fromString(to).get)
+    Rate.Pair(Currency.fromString(from), Currency.fromString(to))
 
   // Helper for creating a dummy Rate
-  def dummyRate(from: String, to: String, price: Double, timestamp: Instant): Rate =
+  def dummyRate(from: String, to: String, price: Double, timestamp: OffsetDateTime): Rate =
     Rate(dummyRatePair(from, to), Price(BigDecimal(price)), Timestamp(timestamp))
 
   "RatesHttpRoutes" should {
 
     "return a rate on a successful request" in {
-      val pair = dummyRatePair("USD", "JPY")
-      val timestamp = Instant.now()
+      val timestamp = OffsetDateTime.now()
       val expectedRate = dummyRate("USD", "JPY", 100.0, timestamp)
 
       val mockRatesProgram = new RatesProgram[IO] {
@@ -46,7 +45,7 @@ class RatesHttpRoutesSpec extends AnyWordSpec with Matchers {
       val response = routes.run(request).unsafeRunSync()
 
       response.status shouldBe Status.Ok
-      response.as[Rate].unsafeRunSync() shouldBe expectedRate
+      response.as[GetApiResponse].unsafeRunSync() shouldBe expectedRate.asGetApiResponse
     }
 
     "return 404 Not Found for RateLookupFailed error" in {
@@ -56,7 +55,7 @@ class RatesHttpRoutesSpec extends AnyWordSpec with Matchers {
       }
 
       val routes = new RatesHttpRoutes[IO](mockRatesProgram).routes.orNotFound
-      val request = Request[IO](Method.GET, uri"/rates?from=UNKNOWN&to=CURRENCY")
+      val request = Request[IO](Method.GET, uri"/rates?from=USD&to=JPY")
       val response = routes.run(request).unsafeRunSync()
 
       response.status shouldBe Status.NotFound
@@ -94,7 +93,7 @@ class RatesHttpRoutesSpec extends AnyWordSpec with Matchers {
     "return 500 Internal Server Error for unexpected errors" in {
       val mockRatesProgram = new RatesProgram[IO] {
         override def get(request: RatesProgramProtocol.GetRatesRequest): IO[ProgramErrors.Error Either Rate] =
-          IO.pure(new RuntimeException("Unexpected error").asLeft[Rate])
+          IO.raiseError(new RuntimeException("Unexpected error"))
       }
 
       val routes = new RatesHttpRoutes[IO](mockRatesProgram).routes.orNotFound

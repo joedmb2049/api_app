@@ -60,7 +60,7 @@ class LiveInterpreter[F[_]: Sync](client: Client[F])(implicit showCurrency: Show
 
   private val BaseUri: Uri = uri"http://localhost:8080"
   private val AuthToken: String = "10dc303535874aeccc86a8251e6992f5"
-  private val DailyRateLimit: Long = 1000L
+  val DailyRateLimit: Long = 1000L
   private val RateFreshnessDuration: Duration = Duration.ofMinutes(5)
 
   /**
@@ -73,7 +73,7 @@ class LiveInterpreter[F[_]: Sync](client: Client[F])(implicit showCurrency: Show
    * A concurrent, immutable reference for tracking daily API usage and the date of the last reset.
    * Stored as a tuple: (current daily usage count, date of last reset).
    */
-  private val dailyUsage: Ref[F, (Long, LocalDate)] =
+  val dailyUsage: Ref[F, (Long, LocalDate)] =
     Ref.unsafe((0L, LocalDate.now()))
 
   private val logger = LoggerFactory.getLogger(getClass.getName)
@@ -137,25 +137,28 @@ class LiveInterpreter[F[_]: Sync](client: Client[F])(implicit showCurrency: Show
     val requestUri = (BaseUri / "rates").withQueryParam("pair", s"${showCurrency.show(pair.from)}${showCurrency.show(pair.to)}")
     val request = Request[F](method = Method.GET, uri = requestUri).withHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, AuthToken)))
 
-    client.expect[String](request).attempt.flatMap {
-      case Right(responseBody) =>
-        decode[List[OneFrameRate]](responseBody) match {
-          case Right(oneFrameRates) =>
-            oneFrameRates.headOption match {
-              case Some(oneFrameRate) =>
-                Rate(
-                  pair = pair,
-                  price = Price(oneFrameRate.price),
-                  timestamp = Timestamp(OffsetDateTime.ofInstant(oneFrameRate.time_stamp, ZoneOffset.UTC))
-                ).asRight[Error].pure[F].widen[Either[Error, Rate]]
-              case None =>
-                Error.OneFrameLookupFailed(s"No rate found for $pair in One-Frame response.").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
-            }
-          case Left(decodeError) =>
-            Error.OneFrameLookupFailed(s"Failed to parse One-Frame response: ${decodeError.getMessage}").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
+    client.run(request).use { response =>
+      if (response.status.isSuccess) {
+        response.as[String].flatMap { responseBody =>
+          decode[List[OneFrameRate]](responseBody) match {
+            case Right(oneFrameRates) =>
+              oneFrameRates.headOption match {
+                case Some(oneFrameRate) =>
+                  Rate(
+                    pair = pair,
+                    price = Price(oneFrameRate.price),
+                    timestamp = Timestamp(OffsetDateTime.ofInstant(oneFrameRate.time_stamp, ZoneOffset.UTC))
+                  ).asRight[Error].pure[F].widen[Either[Error, Rate]]
+                case None =>
+                  Error.OneFrameLookupFailed(s"No rate found for ${showCurrency.show(pair.from)}/${showCurrency.show(pair.to)} in One-Frame response.").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
+              }
+            case Left(decodeError) =>
+              Error.OneFrameLookupFailed(s"Failed to parse One-Frame response: ${decodeError.getMessage}").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
+          }
         }
-      case Left(throwable) =>
-        Error.OneFrameConnectionFailed(s"Failed to connect to One-Frame API: ${throwable.getMessage}").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
+      } else {
+        Error.OneFrameConnectionFailed(s"Failed to connect to One-Frame API: Server returned ${response.status.code} status code").asLeft[Rate].pure[F].widen[Either[Error, Rate]]
+      }
     }
   }
 }

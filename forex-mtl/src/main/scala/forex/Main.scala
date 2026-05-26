@@ -1,17 +1,16 @@
 package forex
 
-import org.http4s.blaze.client.BlazeClientBuilder
-import scala.concurrent.ExecutionContext
-import cats.effect._
-import forex.config._
+import cats.effect.{ ConcurrentEffect, ExitCode, IOApp, IO, Timer }
 import fs2.Stream
+import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.blaze.server.BlazeServerBuilder
+import scala.concurrent.ExecutionContext
+import forex.config._
 
 object Main extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] =
     new Application[IO].stream(executionContext).compile.drain.as(ExitCode.Success)
-
 }
 
 class Application[F[_]: ConcurrentEffect: Timer] {
@@ -26,5 +25,4 @@ class Application[F[_]: ConcurrentEffect: Timer] {
             .withHttpApp(module.httpApp)
             .serve
     } yield ()
-
 }
